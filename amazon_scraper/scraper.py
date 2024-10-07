@@ -80,7 +80,7 @@ class Scraper():
 
             # if using scraperapi: www.scraperapi.com 
 
-            API_KEY = "aedb8b557ff49e372f1b2691c14e27b2"
+            API_KEY = ""
             payload = {"api_key": API_KEY, "url": url}
             response = requests.get("https://api.scraperapi.com", params=payload)
             
