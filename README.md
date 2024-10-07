@@ -1,6 +1,8 @@
 # Multithreaded-amazon-scraper
 
 # Description
+Improved on existing code: [https://github.com/ankushduacodes/Multithreaded-amazon-scraper/tree/master/amazon_scraper](https://github.com/ankushduacodes/Multithreaded-amazon-scraper)
+
 This package allows you to search and scrape for products on [Amazon](https://www.amazon.com) and extract some useful information (price, ratings, number of comments).
 
 # Requirements
@@ -9,7 +11,7 @@ This package allows you to search and scrape for products on [Amazon](https://ww
 
 # Dependencies
 ```bash
-pip3 install -r requirements.txt
+pip install -r requirements.txt
 ```
 
 # Usage
@@ -17,13 +19,14 @@ pip3 install -r requirements.txt
 2. Open a terminal or cmd at download folder directory
 3. run:
 ```bash 
-python3 example.py -w <word you want to search>
+python example.py -w "<word you want to search>"
 ```
 4. Above step with create a .json file(in same directory as example.py) with the products that were found.
 5. For more help just run:
 ```bash 
-python3 example.py --help
+python example.py --help
 ```
+If these don't work, try pip3 and python3
 
 ### Information fetched
 
@@ -31,6 +34,8 @@ Attribute name      | Description
 ------------------- | ---------------------------------------
 url                 | Product URL
 title               | Product title
+brand               | Product brand
+description         | Product description
 price               | Product price
 rating              | Rating of the products
 review_count        | Number of customer reviews
@@ -56,15 +61,11 @@ On my network connection (results may vary depending on your connection speed)
 
 Number of pages     | Number of products | Time              |
 --------------------|--------------------|-------------------|
- 1                  | 22                 | 2.657             |
- 3                  | 126                | 4.007 sec         |
- 7                  | 390                | 8.094 sec         |
- 20                 | 426                | 12.534 sec        |
+ 1                  | 22                 | 90  s             |
+ 5                  | 110                | 7.5 min           |
 --------------------------------------------------------------
 
 ## Future Imporvements
-- [ ] Write Unit tests
-- [ ] Implement functionality of sending requests from various differnt proxies
-- [ ] Items like Books and DVDs may have multiple prices, Extact all the prices and categorize them into a price dictionary
-- [ ] Add a better way to convert list of objects into json
-- [ ] To handle special characters in the content scraped from Amazon
+- [ ] Update benchmarking
+- [ ] Handle a variety of products. Book product data is incomplete
+- [ ] Handle Amazon-owned brands. Brand is left blank in these cases
