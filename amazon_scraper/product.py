@@ -3,11 +3,13 @@ import json
 class Product():
     """ Hold information about object of type Product
     """
-    def __init__(self, url='', asin='', title='', price=None, img_url='', rating_stars='', review_count=None, bestseller=False, prime=False):
+    def __init__(self, url='', asin='', title='', brand='', description='', price=None, img_url='', rating_stars='', review_count=None, bestseller=False, prime=False):
 
         self.url = url
         self.asin = asin
         self.title = title
+        self.brand = brand
+        self.description = description
         self.price = price
         self.img_url = img_url
         self.rating_stars = rating_stars

@@ -19,7 +19,7 @@ def main():
 
     arg = parser.parse_args()
     arg.word = ''.join(arg.word)
-    amazon = Scraper()
+    amazon = Scraper(arg.word)
     amazon.search(arg.word)
 
 

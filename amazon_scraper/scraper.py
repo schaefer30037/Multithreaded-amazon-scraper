@@ -5,6 +5,7 @@ Module to get and parse the product info on Amazon Search
 
 import re
 import time
+import random
 import uuid
 import requests
 from bs4 import BeautifulSoup
@@ -21,17 +22,26 @@ class Scraper():
     """Does the requests with the Amazon servers
     """
 
-    def __init__(self):
+    def __init__(self, word):
         """ Init of the scraper
         """
+        self.item_count = 1
+        self.word = word
         self.session = requests.Session()
+        user_agents = [
+            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+            'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/14.0.3 Safari/605.1.15',
+            'Mozilla/5.0 (Linux; Android 11; SM-G991B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.120 Mobile Safari/537.36',
+            # 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_13_5) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/67.0.3396.79 Safari/537.36'
+            # Add more user agents here
+        ]
         self.headers = {
             'authority': 'www.amazon.com',
             'pragma': 'no-cache',
             'cache-control': 'no-cache',
             'dnt': '1',
             'upgrade-insecure-requests': '1',
-            'user-agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_13_5) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/67.0.3396.79 Safari/537.36',
+            'user-agent': random.choice(user_agents),
             'accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.9',
             'sec-fetch-site': 'none',
             'sec-fetch-mode': 'navigate',
@@ -67,13 +77,25 @@ class Scraper():
             response or None: returns whatever response was sent back by the server or returns None if requests.exceptions.ConnectionError occurs
         """
         try:
-            response = self.session.get(url, headers=self.headers)
-            if response.status_code != 200:
-                raise requests.HTTPError(
-                    "Error occured, status code:{response.status_code}")
-        #  returns None if requests.exceptions.ConnectionError or requests.HTTPError occurs
+
+            # if using scraperapi: www.scraperapi.com 
+
+            API_KEY = "aedb8b557ff49e372f1b2691c14e27b2"
+            payload = {"api_key": API_KEY, "url": url}
+            response = requests.get("https://api.scraperapi.com", params=payload)
+            
+
+            # If not using scraperapi
+
+            # time.sleep(random.randint(1, 15))
+            # response = self.session.get(url, headers=self.headers)
+            # if response.status_code != 200:
+            #     raise requests.HTTPError(
+            #         f"Error occured, status code: {response.status_code}")
+
+
         except (requests.exceptions.ConnectionError, requests.HTTPError) as e:
-            print(e + "while connecting to" + url)
+            print(str(e) + " while connecting to " + url)
             return None
 
         return response
@@ -87,12 +109,16 @@ class Scraper():
 
         if "We're sorry. The Web address you entered is not a functioning page on our site." in page_content:
             valid_page = False
+            print("Amazon: We're sorry. The Web address you entered is not a functioning page on our site.")
         elif "Try checking your spelling or use more general terms" in page_content:
             valid_page = False
+            print("Amazon: Try checking your spelling or use more general terms")
         elif "Sorry, we just need to make sure you're not a robot." in page_content:
             valid_page = False
+            print("Amazon: Sorry, we just need to make sure you're not a robot.")
         elif "The request could not be satisfied" in page_content:
             valid_page = False
+            print("Amazon: The request could not be satisfied")
         else:
             valid_page = True
         return valid_page
@@ -126,13 +152,14 @@ class Scraper():
             if valid_page:
                 break
 
-            print("No valid page was found, retrying in 3 seconds...")
-            time.sleep(3)
+            print("No valid page was found, retrying in 30 seconds...")
+            time.sleep(30)
             trial += 1
 
         if not valid_page:
             print(
                 "Even after retrying, no valid page was found on this thread, terminating thread...")
+            self.generate_output_file()
             return None
 
         return response.text
@@ -147,7 +174,8 @@ class Scraper():
             url: returns full url of product
         """
 
-        regexp = "a-link-normal a-text-normal".replace(' ', '\s+')
+        # regexp = "a-link-normal a-text-normal".replace(' ', '\s+')
+        regexp = "a-link-normal s-underline-text s-underline-link-text s-link-style a-text-normal".replace(' ', '\s+')
         classes = re.compile(regexp)
         product_url = product.find('a', attrs={'class': classes}).get('href')
         return base_url + product_url
@@ -164,6 +192,74 @@ class Scraper():
 
         return product.get('data-asin')
 
+    def get_brand_and_description(self, url):
+        """Retrieves and returns brand, description
+        Args:
+            product (str): higher level html tags of a product containing all the information about a product
+
+        Returns:
+            title: returns brand, description or empty string if they aren't found
+        """
+        try:
+            # time.sleep(15)
+            page_content = self.get_page_content(url)
+            if not page_content:
+                return '', ''
+            soup = BeautifulSoup(page_content, "html5lib")
+            
+            # Get brand
+            brand_row = soup.find('tr', class_='po-brand')
+            if brand_row:
+                brand = brand_row.find_all('td')[1].find('span').text.strip()
+            else:
+                brand_link = soup.find('a', id='bylineInfo')
+                if brand_link:
+                    brand_text = brand_link.get_text()
+                    # Split the text to get the brand name
+                    brand = brand_text.split(': ')[1] if ': ' in brand_text else brand_text
+                else:
+                    brand = ''
+            
+            # Get description
+            about_section = soup.find(re.compile(r'^h[1-6]$'), text=re.compile(r"About\s+this\s+item"))
+
+            if about_section:
+                parent_div = about_section.find_parent('div')
+                feature_items = parent_div.find_all('li')
+                description = [li.get_text(strip=True) for li in feature_items]
+
+            else:
+                feature_bullets = soup.find('div', id='feature-bullets')
+                if feature_bullets:
+                    # Extract all list items from the feature bullets section
+                    description = [li.get_text(strip=True) for li in feature_bullets.find_all('li')]
+                else:
+                    description = []
+
+            if not description:
+                # print(url)
+                with open("product_page.html", "w", encoding="utf-8") as file:
+                    file.write(str(soup.prettify()))  # Prettify makes the HTML easier to read
+                    file.write("\n\n")
+
+            return brand, '\n'.join(description)
+
+            # with open("product_page.html", "w", encoding="utf-8") as file:
+            #     file.write(str(soup.prettify()))  # Prettify makes the HTML easier to read
+            #     file.write("\n\n")
+            
+            # brand_label = product.find('span', text="Brand")
+
+            # # Once 'Brand' is found, locate the next 'span' with class 'a-text-bold' that contains the actual brand
+            # brand = brand_label.find_next('span', class_='a-text-bold')
+            # return brand.text.strip()
+        
+        except AttributeError:
+            """AttributeError occurs when no brand is found and we get back None
+            in that case when we try to do title.text it raises AttributeError
+            because Nonetype object does not have text attribute"""
+            return ''
+        
     def get_product_title(self, product):
         """Retrieves and returns product title
         Args:
@@ -258,9 +354,11 @@ class Scraper():
         """
 
         try:
-            review_count = product.find(
-                'span', attrs={'class': 'a-size-base', 'dir': 'auto'})
-            return int(review_count.text.strip().replace(',', ''))
+            reviews_match = re.search(r'(\d+)\s+ratings', str(product))
+    
+            if reviews_match:
+                return int(reviews_match.group(1).strip().replace(',', ''))
+            return None
 
         except (AttributeError, ValueError):
             """AttributeError occurs when no review_count is found and we get back None
@@ -320,9 +418,11 @@ class Scraper():
         """
 
         product_obj = Product()
-        product_obj.url = self.get_product_url(product)
+        prod_url = self.get_product_url(product)
+        product_obj.url = prod_url
         product_obj.asin = self.get_product_asin(product)
         product_obj.title = self.get_product_title(product)
+        product_obj.brand, product_obj.description = self.get_brand_and_description(prod_url)
         product_obj.price = self.get_product_price(product)
         product_obj.img_url = self.get_product_image_url(product)
         product_obj.rating_stars = self.get_product_rating(product)
@@ -344,9 +444,23 @@ class Scraper():
 
         soup = BeautifulSoup(page_content, 'html5lib')
         try:
-            pagination = soup.find_all(
-                'li', attrs={'class': ['a-normal', 'a-disabled', 'a-last']})
-            return int(pagination[-2].text)
+            # pagination = soup.find_all(
+            #     'li', attrs={'class': ['a-normal', 'a-disabled', 'a-last']})
+            # return int(pagination[-2].text)
+            
+            last_page_span = soup.find('span', class_='s-pagination-item s-pagination-disabled')
+
+            if last_page_span:
+                # If the disabled span exists, extract the page number from it
+                last_page_number = last_page_span.text.strip()    
+            else:
+                # If the disabled span doesn't exist, find the largest page number in pagination links
+                pagination_links = soup.find_all('a', class_='s-pagination-item s-pagination-button')
+                last_page_number = pagination_links[-1].text.strip()
+            
+            # return min(1, int(last_page_number))
+            return int(last_page_number)
+
         except IndexError:
             return 1
 
@@ -371,9 +485,17 @@ class Scraper():
         soup = BeautifulSoup(page_content, "html5lib")
         product_list = soup.find_all(
             'div', attrs={'data-component-type': 's-search-result'})
-
+        
         for product in product_list:
+            print(f"scraping product {self.item_count}")
             self.get_product_info(product)
+            self.item_count += 1
+        # product = product_list[0]
+        # self.get_product_info(product)
+        # with open("product_list.html", "w", encoding="utf-8") as file:
+        #     product = product_list[1]
+        #     file.write(str(product.prettify()))  # Prettify makes the HTML easier to read
+        #     file.write("\n\n")
 
     def get_products_wrapper(self, page_url):
         """wrapper function that gets contents of a given url and gets products from that url
@@ -394,7 +516,7 @@ class Scraper():
 
         products_json_list = []
         # generate random file name
-        filename = str(uuid.uuid4()) + '.json'
+        filename = self.word + '.json'
         # every object gets converted into json format
         for obj in self.product_obj_list:
             products_json_list.append(obj.to_json())
@@ -426,10 +548,16 @@ class Scraper():
 
         else:
             # if page count is more than 1, then we prepare a page list and start a thread at each page url
+            print(f"Processing {self.page_count} pages")
             self.prepare_page_list(search_url)
+            # for page in self.page_list:
+            #     print('Processing page:', page)
+            #     self.get_products_wrapper(page)
+                # time.sleep(120)
             # creating threads at each page in page_list
             with ThreadPoolExecutor() as executor:
                 for page in self.page_list:
+                    print('processing page ', page)
                     executor.submit(self.get_products_wrapper, page)
 
         # generate a json output file
